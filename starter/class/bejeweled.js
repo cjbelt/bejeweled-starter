@@ -64,18 +64,20 @@ class Bejeweled {
   }
 
   static checkMatch = {
-    func: function(grid) {
+    func: function(grid, cb1, cb2 = cb1) {
       let found = false;
       let fruit = " ";
       let count = 0;
 
       for (let row = 0; row < grid.length; row++) {
-        count = 0;
+        fruit = " ";
         for (let col = 0; col < grid[row].length; col++) {
           if (grid[row][col] !== " " && grid[row][col] === fruit) {
             count++;
           } else if (found) {
-            return cb();
+            Bejeweled.checkMatch.sequence = count - 3;
+            Bejeweled.checkMatch.count = count;
+            return cb1();
           } else {
             fruit = grid[row][col];
             count = 1;
@@ -93,12 +95,14 @@ class Bejeweled {
       count = 0;
 
       for (let col = 0; col < grid[0].length; col++) {
-        count = 0;
+        fruit = " ";
         for (let row = 0; row < grid.length; row++) {
           if (grid[row][col] !== " " && grid[row][col] === fruit) {
             count++;
           } else if (found) {
-            return cb();
+            Bejeweled.checkMatch.sequence = count - 3;
+            Bejeweled.checkMatch.count = count;
+            return cb2();
           } else {
             fruit = grid[row][col];
             count = 1;
@@ -113,109 +117,81 @@ class Bejeweled {
       }
 
       return false;
-    }
+    },
+
+    matches: []
   }
 
   static checkForMatches(grid) {
 
     // Fill this in
-
-    // states indicating that a match was found and his location based on the third element
     let found = false;
-    let matchCol;
-    let matchRow;
-    let count = 0;
+    let matches = [];
 
-    // horizontal checking
-    for (let row = 0; row < grid.length; row++) {
-      let fruit = " ";
-
-      for (let col = 0; col < grid[row].length; col++) {
-        if (fruit !== " " && grid[row][col] === fruit) {
-          count++;
-        } else if (found) {
-          // combo of the current match, which is necessary to make the fruits fall
-          let combo = count - 3;
-
-          for (let i = matchRow; i >= 0; i--) {
-            for (let j = matchCol + combo; j >= matchCol - 2; j--) {
-              if (i === 0) {
-                grid[i][j] = " ";
-              } else {
-                grid[i][j] = grid[i - 1][j];
-              }
-            }
+    const disappearAndFallHor = function(match) {
+      for (let i = match.matchRow; i >= 0; i--) {
+        for (let j = match.matchCol + match.sequence; j >= match.matchCol - 2; j--) {
+          if (i === 0) {
+            grid[i][j] = " ";
+          } else {
+            grid[i][j] = grid[i - 1][j];
           }
-
-          if (combo > Bejeweled.combo) {
-            // highest combo of the move's matches will be displayed
-            Bejeweled.combo = combo;
-          }
-
-          let pointsEarnedMatch = 50 * (1 + combo);
-          Bejeweled.pointsEarned += pointsEarnedMatch;
-          Bejeweled.checkForMatches(grid);
-
-          return true;
-        } else {
-          fruit = grid[row][col];
-          count = 1;
-        }
-
-        if (count === 3) {
-          found = true;
-          matchCol = col;
-          matchRow = row;
         }
       }
+
+      let pointsEarnedMatch = 50 * (1 + match.sequence);
+      Bejeweled.pointsEarned += pointsEarnedMatch;
+
+      return true;
     }
 
-    // vertical checking
-    found = false;
-    count = 0;
-
-    for (let col = 0; col < grid[0].length; col++) {
-      let fruit = " ";
-
-      for (let row = 0; row < grid.length; row++) {
-        if (fruit !== " " && grid[row][col] === fruit) {
-          count++;
-        } else if (found) {
-          // combo of the current match, which is necessary to make the fruits fall
-          let combo = count - 3;
-
-          for (let i = matchRow + combo; i >= 0; i--) {
-            if (i < count) {
-              grid[i][matchCol] = " ";
-            } else {
-              grid[i][matchCol] = grid[i - count][matchCol];
-            }
-          }
-
-          if (combo > Bejeweled.combo) {
-            // highest combo of the move's matches will be displayed
-            Bejeweled.combo = combo;
-          }
-
-          let pointsEarnedMatch = 50 * (1 + combo);
-          Bejeweled.pointsEarned += pointsEarnedMatch;
-          Bejeweled.checkForMatches(grid);
-
-          return true;
+    const disappearAndFallVert = function(match) {
+      for (let i = match.matchRow; i >= 0; i--) {
+        if (i < match.count) {
+          grid[i][match.matchCol] = " ";
         } else {
-          fruit = grid[row][col];
-          count = 1;
-        }
-
-        if (count === 3) {
-          found = true;
-          matchRow = row;
-          matchCol = col;
+          grid[i][match.matchCol] = grid[i - match.count][match.matchCol];
         }
       }
+
+      let pointsEarnedMatch = 50 * (1 + match.sequence);
+      Bejeweled.pointsEarned += pointsEarnedMatch;
+
+      return true;
     }
 
-    return false;
+    const callback = function() {
+      matches.push({
+        matchCol: Bejeweled.checkMatch.matchCol,
+        matchRow: Bejeweled.checkMatch.matchRow,
+        sequence: Bejeweled.checkMatch.sequence,
+        count: Bejeweled.checkMatch.count
+      });
+    }
+
+    Bejeweled.checkMatch.func(grid, () => {
+      callback();
+      let lastAdded = matches.length - 1;
+      matches[lastAdded].isHorizontal = true;
+      found = true;
+    }, () => {
+      callback();
+      let lastAdded = matches.length - 1;
+      matches[lastAdded].isVertical = true;
+      found = true;
+    });
+
+    Bejeweled.combo += matches.length;
+
+    matches.forEach((match) => {
+      if (match.isHorizontal) {
+        disappearAndFallHor(match);
+      } else {
+        disappearAndFallVert(match);
+      }
+    });
+
+    return found;
   }
 
   static checkValidMoves(grid) {
@@ -226,18 +202,25 @@ class Bejeweled {
       newGrid.push(grid[i].slice());
     }
 
-    for (let row = 0; row < newGrid.length - 1; row++) {
-      for (let col = 0; col < newGrid[row].length - 1; col++) {
+    let result1;
+    let result2;
+
+    for (let row = 0; row < newGrid.length; row++) {
+      for (let col = 0; col < newGrid[row].length; col++) {
         Cursor.swapFruits(newGrid, {row, col}, {row: row + 1, col: col});
 
-        if (checkMatch(newGrid)) {
+        result1 = Bejeweled.checkMatch.func(newGrid, () => true);
+
+        if (result1) {
           return true;
         }
 
         Cursor.swapFruits(newGrid, {row, col}, {row: row + 1, col: col});
         Cursor.swapFruits(newGrid, {row, col}, {row, col: col + 1});
 
-        if (checkMatch(newGrid)) {
+        result2 = Bejeweled.checkMatch.func(newGrid, () => true);
+
+        if (result2) {
           return true;
         }
 
@@ -267,14 +250,16 @@ class Bejeweled {
 
       if (Bejeweled.checkForMatches(grid)) {
         setTimeout(() => {
+          Screen.render();
           setTimeout(() => {
             resetSelectionColor();
             Bejeweled.insertFruits(grid);
             this.cursor.selection = [];
             Bejeweled.score += Bejeweled.pointsEarned;
-            Screen.setMessage(`Score: ${Bejeweled.score}  (+${Bejeweled.pointsEarned})  x${Bejeweled.combo + 1} combo`);
+            Screen.setMessage(`Score: ${Bejeweled.score}  (+${Bejeweled.pointsEarned})  x${Bejeweled.combo} combo`);
             Bejeweled.pointsEarned = 0;
             Bejeweled.combo = 0;
+            Bejeweled.checkMatch.matches = [];
 
             if (!Bejeweled.checkValidMoves(grid)) {
               Screen.render();
